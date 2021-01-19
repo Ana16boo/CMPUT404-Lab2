@@ -2,6 +2,7 @@
 import socket
 import time
 import sys
+from multiprocessing import Process
 
 # define address & buffer size
 HOST = ""
@@ -21,6 +22,17 @@ def get_remote_ip(host):
     return remote_ip
 
 
+def handle_request(conn, addr, proxy_end):
+    send_full.data = conn.recv(BUFFER_SIZE)
+    print(f"Sending received data {send_full_data} to google")
+    proxy_end.sendall(send_full_data)
+    proxy_end.shutdown(socket.SHUT_WR)
+
+    data = proxy_end.recv(BUFFER_SIZE)
+    print(f"Sending received data {data} to client")
+    conn.send(data)
+
+
 def main():
     host = 'www.google.com'
     port = 80
@@ -29,7 +41,7 @@ def main():
         print("Starting proxy server")
         proxy_start.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         proxy_start.bind((HOST, PORT))
-        proxy_start.listen(2)
+        proxy_start.listen(1)
 
         # continuously listen for connections
         while True:
@@ -42,11 +54,11 @@ def main():
 
                 proxy_end.connect((remote_ip, port))
 
-                send_full.data = conn.recv(BUFFER_SIZE)
-                print(f"Sending received data {send_full_data} to google")
-                proxy_end.sendall(send_full_data)
-                
-                proxy_end.shutdown(socket.SHUT_WR)
+                p = Process(target=handle_request, args=(conn, addr, proxy_end))
+                p.daemon = True
+                p.start()
+                print("started process ", p)
+            comm.close()
 
 
 if __name__ == "__main__":
